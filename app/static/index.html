@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>Карточки товаров</title>
+  <style>
+    body {
+      font-family: system-ui, sans-serif;
+      max-width: 720px;
+      margin: 32px auto;
+      padding: 0 16px;
+      color: #222;
+      background: #fafafa;
+    }
+    h1 { font-size: 20px; margin-bottom: 20px; }
+    label { display: block; font-size: 13px; color: #555; margin-top: 12px; }
+    input, textarea {
+      width: 100%;
+      padding: 8px;
+      margin-top: 4px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      font: inherit;
+      box-sizing: border-box;
+    }
+    textarea { min-height: 70px; resize: vertical; }
+    button {
+      margin-top: 16px;
+      padding: 10px 20px;
+      background: #2563eb;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      font-size: 15px;
+      cursor: pointer;
+    }
+    button:disabled { background: #94a3c9; cursor: wait; }
+    .error { color: #b91c1c; margin-top: 12px; font-size: 14px; }
+    .card {
+      background: #fff;
+      border: 1px solid #e5e5e5;
+      border-radius: 10px;
+      padding: 20px;
+      margin-top: 24px;
+    }
+    .card h2 { font-size: 14px; color: #666; margin: 16px 0 4px; }
+    .card h2:first-child { margin-top: 0; }
+    .card p { margin: 4px 0; line-height: 1.5; font-size: 14px; }
+    .missing { color: #b45309; font-size: 13px; margin-top: 12px; }
+  </style>
+</head>
+<body>
+  <h1>Карточка товара</h1>
+
+  <label>Название</label>
+  <input id="name" placeholder="Манометр DM Ø2">
+
+  <label>Производитель</label>
+  <input id="manufacturer" placeholder="Манотомь">
+
+  <label>Характеристики</label>
+  <input class="spec" placeholder="диапазон измерений">
+  <input class="spec" placeholder="класс точности">
+  <input class="spec" placeholder="присоединение">
+  <input class="spec" placeholder="диаметр корпуса">
+  <input class="spec" placeholder="питание">
+  <input class="spec" placeholder="интерфейсы">
+  <input class="spec" placeholder="тип корпуса">
+
+  <label>Описание</label>
+  <textarea id="description" placeholder="Прибор предназначен для..."></textarea>
+
+  <button id="btn">Сгенерировать</button>
+  <div id="error" class="error"></div>
+
+  <div id="out"></div>
+
+  <script>
+    const btn = document.getElementById("btn");
+
+    btn.onclick = async () => {
+      const specs = {};
+      document.querySelectorAll(".spec").forEach(el => {
+        if (el.value.trim()) specs[el.placeholder] = el.value.trim();
+      });
+
+      const body = {
+        name: document.getElementById("name").value,
+        manufacturer: document.getElementById("manufacturer").value,
+        specs,
+        description: document.getElementById("description").value || null,
+      };
+
+      document.getElementById("error").textContent = "";
+      document.getElementById("out").innerHTML = "";
+      btn.disabled = true;
+      btn.textContent = "Генерирую…";
+
+      try {
+        const res = await fetch("/api/generate", {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify(body),
+        });
+        const data = await res.json();
+
+        if (!res.ok) {
+          document.getElementById("error").textContent = JSON.stringify(data.detail);
+          return;
+        }
+        render(data);
+      } catch (e) {
+        document.getElementById("error").textContent = e.message;
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "Сгенерировать";
+      }
+    };
+
+    function render(d) {
+      const specs = Object.entries(d.key_specs)
+        .map(([k, v]) => `<p><b>${k}:</b> ${v}</p>`)
+        .join("");
+      const queries = d.search_queries
+        .map(q => `<p>• ${q}</p>`)
+        .join("");
+      const missing = d.missing_fields.length
+        ? `<p class="missing">Не хватает: ${d.missing_fields.join(", ")}</p>`
+        : "";
+
+      document.getElementById("out").innerHTML = `
+        <div class="card">
+          <h2>Заголовок</h2><p>${d.seo_title}</p>
+          <h2>Описание</h2><p>${d.seo_description}</p>
+          <h2>Характеристики</h2>${specs}${missing}
+          <h2>Поисковые запросы</h2>${queries}
+          <h2>Commercial-блок</h2><p>${d.commercial_block}</p>
+        </div>`;
+    }
+  </script>
+</body>
+</html>
